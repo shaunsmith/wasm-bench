@@ -1,8 +1,16 @@
 package org.graalvm.benchmark;
 
-import java.io.IOException;
-import java.util.concurrent.TimeUnit;
-
+import com.dylibso.chicory.aot.AotMachine;
+import com.dylibso.chicory.log.SystemLogger;
+import com.dylibso.chicory.runtime.ExportFunction;
+import com.dylibso.chicory.runtime.HostImports;
+import com.dylibso.chicory.runtime.Instance;
+import com.dylibso.chicory.runtime.Memory;
+import com.dylibso.chicory.runtime.Module;
+import com.dylibso.chicory.wasi.WasiOptions;
+import com.dylibso.chicory.wasi.WasiPreview1;
+import com.dylibso.chicory.wasm.Parser;
+import com.dylibso.chicory.wasm.types.Value;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -17,27 +25,28 @@ import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
-import com.dylibso.chicory.log.SystemLogger;
-import com.dylibso.chicory.runtime.ExportFunction;
-import com.dylibso.chicory.runtime.Module;
-import com.dylibso.chicory.wasi.WasiOptions;
-import com.dylibso.chicory.wasm.types.Value;
-import com.dylibso.chicory.runtime.Memory;
-import com.dylibso.chicory.runtime.HostImports;
-import com.dylibso.chicory.runtime.Instance;
-import com.dylibso.chicory.wasi.WasiPreview1;
+import java.io.IOException;
+import java.util.concurrent.TimeUnit;
 
 @Warmup(iterations = 3)
 @Measurement(iterations = 3)
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @Fork(1)
-public class ChicoryTest {
-  
+public class ChicoryAotTest {
+
     @State(Scope.Thread)
-    public static class ChicoryFixture extends WasmTestFixture {
+    public static class ChicoryAotFixture extends WasmTestFixture {
         public WasiPreview1 wasi;
         public Instance instance;
+
+        Instance buildInstance(byte[] wasmBytes, HostImports imports) {
+            return Module.builder(wasmBytes)
+                    .withMachineFactory(AotMachine::new)
+                    .withHostImports(imports)
+                    .build()
+                    .instantiate();
+        }
 
         @Setup(Level.Trial)
         public void doSetup() throws IOException {
@@ -46,10 +55,8 @@ public class ChicoryTest {
             // create our instance of wasip1
             wasi = new WasiPreview1(logger, WasiOptions.builder().build());
             final var imports = new HostImports(wasi.toHostFunctions());
-            // create the module
-            final var module = Module.builder(this.wasmBytes).withHostImports(imports).build();
-            // instantiate (the module) and connect our imports
-            instance = module.instantiate();
+            // create the module and instantiate (the module) and connect our imports
+            instance = buildInstance(this.wasmBytes, imports);
         }
 
         @TearDown(Level.Trial)
@@ -59,7 +66,7 @@ public class ChicoryTest {
     }
 
     @Benchmark
-    public void chicoryTest(ChicoryFixture fixture, Blackhole blackhole) throws IOException {
+    public void chicoryAotTest(ChicoryAotFixture fixture, Blackhole blackhole) throws IOException {
         // automatically exported by TinyGo
         final ExportFunction malloc = fixture.instance.export("malloc");
         final ExportFunction free = fixture.instance.export("free");
@@ -74,7 +81,7 @@ public class ChicoryTest {
         // Call the wasm function
         final Value result = wasmFunc.apply(Value.i32(ptr), Value.i32(fixture.paramLen))[0];
         // free input string memory
-        free.apply(Value.i32(ptr), Value.i32(fixture.paramLen));
+        free.apply(Value.i32(ptr));
 
         // Extract position and size from the result
         final int valuePosition = (int) ((result.asLong() >>> 32) & 0xFFFFFFFFL);
