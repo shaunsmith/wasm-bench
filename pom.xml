@@ -21,13 +21,13 @@
 
       <dependencyManagement>
         <dependencies>
-        <dependency>
-            <groupId>com.dylibso.chicory</groupId>
-            <artifactId>bom</artifactId>
-            <version>${chicory.version}</version>
-            <type>pom</type>
-            <scope>import</scope>
-        </dependency>
+          <dependency>
+              <groupId>com.dylibso.chicory</groupId>
+              <artifactId>bom</artifactId>
+              <version>${chicory.version}</version>
+              <type>pom</type>
+              <scope>import</scope>
+          </dependency>
         </dependencies>
     </dependencyManagement>
 
@@ -86,15 +86,37 @@
       <plugin>
         <groupId>com.dylibso.chicory</groupId>
         <artifactId>aot-maven-plugin-experimental</artifactId>
+        <version>${chicory.version}</version>
         <executions>
           <execution>
             <id>demo-plugin</id>
+            <phase>generate-sources</phase>
             <goals>
               <goal>wasm-aot-gen</goal>
             </goals>
             <configuration>
               <name>org.graalvm.benchmark.Demo</name>
               <wasmFile>demo-plugin/demo.wasm</wasmFile>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>build-helper-maven-plugin</artifactId>
+        <version>3.6.0</version>
+        <executions>
+          <execution>
+            <id>addSource</id>
+            <phase>generate-sources</phase>
+            <goals>
+              <goal>add-source</goal>
+            </goals>
+            <configuration>
+              <sources>
+                <source>${project.basedir}/target/generated-sources/chicory-aot</source>
+              </sources>
             </configuration>
           </execution>
         </executions>
